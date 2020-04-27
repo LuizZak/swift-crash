@@ -1,6 +1,5 @@
 /// Represents a Swift type structure
 indirect public enum SwiftType: Hashable {
-    case nested(NestedSwiftType)
     case nominal(NominalSwiftType)
     case tuple(TupleSwiftType)
     case block(returnType: SwiftType, parameters: [SwiftType], attributes: Set<BlockTypeAttribute>)
@@ -63,26 +62,6 @@ public typealias NestedSwiftType = TwoOrMore<NominalSwiftType>
 public typealias GenericArgumentSwiftType = OneOrMore<SwiftType>
 
 public extension SwiftType {
-    /// If this Swift type is a nominal typename, returns the inner type name as
-    /// a string, otherwise returns nil.
-    var typeName: String? {
-        switch self {
-        case .nominal(.typeName(let name)):
-            return name
-        default:
-            return nil
-        }
-    }
-    
-    var canBeImplicitlyUnwrapped: Bool {
-        switch self {
-        case .implicitUnwrappedOptional, .nullabilityUnspecified:
-            return true
-        default:
-            return false
-        }
-    }
-    
     var isNullabilityUnspecified: Bool {
         switch self {
         case .nullabilityUnspecified:
@@ -121,21 +100,6 @@ public extension SwiftType {
         default:
             return self
         }
-    }
-    
-    /// Returns `self` wrapped over an `.optional` case.
-    var asOptional: SwiftType {
-        .optional(self)
-    }
-    
-    /// Returns `self` wrapped over an `.implicitUnwrappedOptional` case.
-    var asImplicitUnwrapped: SwiftType {
-        .implicitUnwrappedOptional(self)
-    }
-    
-    /// Returns `self` wrapped over an `.nullabilityUnspecified` case.
-    var asNullabilityUnspecified: SwiftType {
-        .nullabilityUnspecified(self)
     }
     
     /// Returns this type, wrapped in the same optionality depth as another given
@@ -187,48 +151,6 @@ public extension SwiftType {
     }
     
     static let void = SwiftType.tuple(.empty)
-    static let int = SwiftType.typeName("Int")
-    static let uint = SwiftType.typeName("UInt")
-    static let string = SwiftType.typeName("String")
-    static let bool = SwiftType.typeName("Bool")
-    static let float = SwiftType.typeName("Float")
-    static let double = SwiftType.typeName("Double")
-    static let cgFloat = SwiftType.typeName("CGFloat")
-    static let any = SwiftType.typeName("Any")
-    static let anyObject = SwiftType.typeName("AnyObject")
-    
-    static let selector = SwiftType.typeName("Selector")
-    
-    static let nsArray = SwiftType.typeName("NSArray")
-    static let nsDictionary = SwiftType.typeName("NSDictionary")
-    
-    /// A special type name to use to represent instancetype's from Objective-C.
-    static let instancetype = SwiftType.typeName("__instancetype")
-    
-    /// A special type used in place of definitions with improper typing
-    static let errorType = SwiftType.typeName("<<error type>>")
-    
-    static func openRange(_ operand: SwiftType) -> SwiftType {
-        .nominal(.generic("Range", parameters: .one(operand)))
-    }
-    
-    static func closedRange(_ operand: SwiftType) -> SwiftType {
-        .nominal(.generic("ClosedRange", parameters: .one(operand)))
-    }
-    
-    static func typeName(_ name: String) -> SwiftType {
-        .nominal(.typeName(name))
-    }
-    
-    static func generic(_ name: String, parameters: GenericArgumentSwiftType) -> SwiftType {
-        .nominal(.generic(name, parameters: parameters))
-    }
-    
-    static func swiftBlock(returnType: SwiftType,
-                           parameters: [SwiftType] = []) -> SwiftType {
-        
-        .block(returnType: returnType, parameters: parameters, attributes: [])
-    }
     
     /// Returns a type that is the same as the input, but with any .optional,
     /// .implicitUnwrappedOptional, or .nullabilityUnspecified types unwrapped
@@ -329,9 +251,6 @@ extension SwiftType: CustomStringConvertible {
             
         case let .tuple(.types(inner)):
             return "(" + inner.map(\.description).joined(separator: ", ") + ")"
-            
-        case .nested(let items):
-            return items.map(\.description).joined(separator: ".")
         }
     }
 }

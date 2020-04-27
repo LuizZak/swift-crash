@@ -23,8 +23,6 @@ class TypealiasExpander {
             switch type {
             case .nominal(let nominal):
                 return .nominal(expand(inNominal: nominal))
-            case .nested(let nested):
-                return .nested(.fromCollection(nested.map(expand(inNominal:))))
             default:
                 return type
             }
