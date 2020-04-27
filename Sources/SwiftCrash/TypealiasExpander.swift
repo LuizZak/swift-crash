@@ -25,8 +25,6 @@ class TypealiasExpander {
                 return .nominal(expand(inNominal: nominal))
             case .nested(let nested):
                 return .nested(.fromCollection(nested.map(expand(inNominal:))))
-            case .protocolComposition(let composition):
-                return .protocolComposition(.fromCollection(composition.map(expand(inComposition:))))
             default:
                 return type
             }
@@ -40,16 +38,6 @@ class TypealiasExpander {
         
         return pushingAlias(string) {
             return typeNameIn(swiftType: aliased).map(expand(inString:)) ?? string
-        }
-    }
-    
-    private func expand(inComposition composition: ProtocolCompositionComponent) -> ProtocolCompositionComponent {
-        switch composition {
-        case .nested(let nested):
-            return .nested(.fromCollection(nested.map(expand(inNominal:))))
-            
-        case .nominal(let nominal):
-            return .nominal(expand(inNominal: nominal))
         }
     }
     
@@ -87,17 +75,6 @@ func typeNameIn(swiftType: SwiftType) -> String? {
     switch swiftType {
     case .nominal(let nominalType):
         return typeNameIn(nominalType: nominalType)
-        
-    // Meta-types recurse on themselves
-    case .metatype(for: let inner):
-        let type = inner.deepUnwrapped
-        
-        switch type {
-        case .nominal(.typeName(let name)):
-            return name
-        default:
-            return typeNameIn(swiftType: type)
-        }
         
     // Other Swift types are not supported, at the moment.
     default:

@@ -2,15 +2,11 @@
 indirect public enum SwiftType: Hashable {
     case nested(NestedSwiftType)
     case nominal(NominalSwiftType)
-    case protocolComposition(ProtocolCompositionSwiftType)
     case tuple(TupleSwiftType)
     case block(returnType: SwiftType, parameters: [SwiftType], attributes: Set<BlockTypeAttribute>)
-    case metatype(for: SwiftType)
     case optional(SwiftType)
     case implicitUnwrappedOptional(SwiftType)
     case nullabilityUnspecified(SwiftType)
-    case array(SwiftType)
-    case dictionary(key: SwiftType, value: SwiftType)
 }
 
 extension SwiftType: ExpressibleByStringLiteral {
@@ -29,12 +25,6 @@ extension NominalSwiftType: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = .typeName(value)
     }
-}
-
-/// A component for a protocol composition
-public enum ProtocolCompositionComponent: Hashable {
-    case nominal(NominalSwiftType)
-    case nested(NestedSwiftType)
 }
 
 /// A tuple swift type, which either represents an empty tuple or two or more
@@ -69,7 +59,6 @@ public enum BlockTypeAttribute: Hashable, CustomStringConvertible {
     }
 }
 
-public typealias ProtocolCompositionSwiftType = TwoOrMore<ProtocolCompositionComponent>
 public typealias NestedSwiftType = TwoOrMore<NominalSwiftType>
 public typealias GenericArgumentSwiftType = OneOrMore<SwiftType>
 
@@ -85,56 +74,6 @@ public extension SwiftType {
         }
     }
     
-    /// Whether this type requires surrounding parenthesis when this type is used
-    /// within an optional or metatype.
-    var requiresSurroundingParens: Bool {
-        switch self {
-        case .protocolComposition, .block:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    /// Returns `true` if this type is a block type
-    var isBlock: Bool {
-        switch self {
-        case .block:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    /// Returns `true` if this type is either an optional, an implicitly unwrapped
-    /// optional, or a 'nullability-unspecified' optional.
-    var isOptional: Bool {
-        switch self {
-        case .optional, .implicitUnwrappedOptional, .nullabilityUnspecified:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    var isMetatype: Bool {
-        switch self {
-        case .metatype:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    var isImplicitlyUnwrapped: Bool {
-        switch self {
-        case .implicitUnwrappedOptional:
-            return true
-        default:
-            return false
-        }
-    }
-    
     var canBeImplicitlyUnwrapped: Bool {
         switch self {
         case .implicitUnwrappedOptional, .nullabilityUnspecified:
@@ -147,39 +86,6 @@ public extension SwiftType {
     var isNullabilityUnspecified: Bool {
         switch self {
         case .nullabilityUnspecified:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    /// Returns `true` if this type represents a nominal type.
-    /// Except for blocks, metatypes and tuples, all types are considered nominal
-    /// types.
-    var isNominal: Bool {
-        switch self {
-        case .block, .metatype, .tuple:
-            return false
-        default:
-            return true
-        }
-    }
-    
-    /// Returns `true` iff this SwiftType is a `.protocolComposition` case.
-    var isProtocolComposition: Bool {
-        switch self {
-        case .protocolComposition:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    /// Returns `true` if this type is a `.typeName`, a `.genericTypeName`, or a
-    /// `.protocolComposition` type.
-    var isProtocolComposable: Bool {
-        switch self {
-        case .nominal(.typeName), .nominal(.generic), .protocolComposition:
             return true
         default:
             return false
@@ -232,12 +138,6 @@ public extension SwiftType {
         .nullabilityUnspecified(self)
     }
     
-    /// Returns a greater than zero number that indicates how many layers of
-    /// optional types this type contains until the first non-optional type.
-    var optionalityDepth: Int {
-        return isOptional ? 1 + unwrapped.optionalityDepth : 0
-    }
-    
     /// Returns this type, wrapped in the same optionality depth as another given
     /// type.
     ///
@@ -271,20 +171,12 @@ public extension SwiftType {
     /// and finally the root type this type represents.
     func map(_ transform: (SwiftType) -> SwiftType) -> SwiftType {
         switch self {
-        case .array(let inner):
-            return .array(inner.map(transform))
-        case let .dictionary(key, value):
-            return .dictionary(key: key.map(transform), value: value.map(transform))
         case .implicitUnwrappedOptional(let inner):
             return .implicitUnwrappedOptional(inner.map(transform))
         case .optional(let inner):
             return .optional(inner.map(transform))
         case .nullabilityUnspecified(let inner):
             return .nullabilityUnspecified(inner.map(transform))
-        case .metatype(let inner):
-            return .metatype(for: inner.map(transform))
-        case .tuple(.types(let types)):
-            return .tuple(TupleSwiftType.types(.fromCollection(types.map { $0.map(transform) })))
         case let .block(returnType, parameters, attributes):
             return .block(returnType: returnType.map(transform),
                           parameters: parameters.map { $0.map(transform) },
@@ -403,21 +295,6 @@ extension NominalSwiftType: CustomStringConvertible {
     }
 }
 
-extension ProtocolCompositionComponent: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .nested(let items):
-            return items.map(\.description).joined(separator: ".")
-        case .nominal(let nominal):
-            return nominal.description
-        }
-    }
-    
-    public static func typeName(_ name: String) -> ProtocolCompositionComponent {
-        .nominal(.typeName(name))
-    }
-}
-
 extension SwiftType: CustomStringConvertible {
     public var description: String {
         switch self {
@@ -439,19 +316,13 @@ extension SwiftType: CustomStringConvertible {
                     + returnType.description
             
         case .optional(let type):
-            return type.descriptionWithParens + "?"
+            return type.description + "?"
             
         case .implicitUnwrappedOptional(let type):
-            return type.descriptionWithParens + "!"
+            return type.description + "!"
             
         case .nullabilityUnspecified(let type):
-            return type.descriptionWithParens + "!"
-            
-        case let .protocolComposition(types):
-            return types.map(\.description).joined(separator: " & ")
-            
-        case let .metatype(innerType):
-            return innerType.descriptionWithParens + ".Type"
+            return type.description + "!"
             
         case .tuple(.empty):
             return "Void"
@@ -461,21 +332,7 @@ extension SwiftType: CustomStringConvertible {
             
         case .nested(let items):
             return items.map(\.description).joined(separator: ".")
-            
-        case .array(let type):
-            return "[\(type)]"
-            
-        case let .dictionary(key, value):
-            return "[\(key): \(value)]"
         }
-    }
-    
-    private var descriptionWithParens: String {
-        if requiresSurroundingParens {
-            return "(\(self))"
-        }
-        
-        return self.description
     }
 }
 
