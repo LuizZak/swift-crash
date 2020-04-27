@@ -1,3 +1,6 @@
+public typealias NestedSwiftType = [NominalSwiftType]
+public typealias GenericArgumentSwiftType = [SwiftType]
+
 /// Represents a Swift type structure
 indirect public enum SwiftType: Hashable {
     case nominal(NominalSwiftType)
@@ -29,7 +32,7 @@ extension NominalSwiftType: ExpressibleByStringLiteral {
 /// A tuple swift type, which either represents an empty tuple or two or more
 /// Swift types.
 public enum TupleSwiftType: Hashable {
-    case types(TwoOrMore<SwiftType>)
+    case types([SwiftType])
     case empty
 }
 
@@ -58,9 +61,6 @@ public enum BlockTypeAttribute: Hashable, CustomStringConvertible {
     }
 }
 
-public typealias NestedSwiftType = TwoOrMore<NominalSwiftType>
-public typealias GenericArgumentSwiftType = OneOrMore<SwiftType>
-
 public extension SwiftType {
     var isNullabilityUnspecified: Bool {
         switch self {
@@ -68,21 +68,6 @@ public extension SwiftType {
             return true
         default:
             return false
-        }
-    }
-    
-    /// If this type is an `.optional` or `.implicitUnwrappedOptional` type, returns
-    /// an unwrapped version of self.
-    /// The return is unwrapped only once.
-    var unwrapped: SwiftType {
-        switch self {
-        case .optional(let type),
-             .implicitUnwrappedOptional(let type),
-             .nullabilityUnspecified(let type):
-            return type
-            
-        default:
-            return self
         }
     }
     
@@ -252,206 +237,5 @@ extension SwiftType: CustomStringConvertible {
         case let .tuple(.types(inner)):
             return "(" + inner.map(\.description).joined(separator: ", ") + ")"
         }
-    }
-}
-
-// MARK: - Building structures
-public struct OneOrMore<T> {
-    public var first: T
-    var remaining: [T]
-    
-    /// Returns the number of items on this `OneOrMore` list.
-    ///
-    /// Due to semantics of this list type, this value is always `>= 1`.
-    public var count: Int {
-        remaining.count + 1
-    }
-    
-    public var last: T {
-        remaining.last ?? first
-    }
-    
-    public init(first: T, remaining: [T]) {
-        self.first = first
-        self.remaining = remaining
-    }
-    
-    /// Creates a `OneOrMore` enum list with a given collection.
-    /// The collection must have at least two elements.
-    ///
-    /// - precondition: `collection.count >= 1`
-    public static func fromCollection<C>(_ collection: C) -> OneOrMore
-        where C: BidirectionalCollection, C.Element == T, C.Index == Int {
-            
-        precondition(collection.count >= 1)
-        
-        return OneOrMore(first: collection[0], remaining: Array(collection.dropFirst(1)))
-    }
-    
-    /// Shortcut for creating a `OneOrMore` list with a given item
-    public static func one(_ value: T) -> OneOrMore {
-        OneOrMore(first: value, remaining: [])
-    }
-}
-
-public struct TwoOrMore<T> {
-    public var first: T
-    public var second: T
-    var remaining: [T]
-    
-    /// Returns the number of items on this `TwoOrMore` list.
-    ///
-    /// Due to semantics of this list type, this value is always `>= 2`.
-    public var count: Int {
-        remaining.count + 2
-    }
-    
-    public var last: T {
-        remaining.last ?? second
-    }
-    
-    public init(first: T, second: T, remaining: [T]) {
-        self.first = first
-        self.second = second
-        self.remaining = remaining
-    }
-    
-    /// Creates a `TwoOrMore` enum list with a given collection.
-    /// The collection must have at least two elements.
-    ///
-    /// - precondition: `collection.count >= 2`
-    public static func fromCollection<C>(_ collection: C) -> TwoOrMore
-        where C: BidirectionalCollection, C.Element == T, C.Index == Int {
-            
-        precondition(collection.count >= 2)
-        
-        return TwoOrMore(first: collection[0], second: collection[1], remaining: Array(collection.dropFirst(2)))
-    }
-    
-    /// Shortcut for creating a `TwoOrMore` list with two given items
-    public static func two(_ value1: T, _ value2: T) -> TwoOrMore {
-        TwoOrMore(first: value1, second: value2, remaining: [])
-    }
-}
-
-// MARK: Sequence protocol conformances
-extension OneOrMore: Sequence {
-    public func makeIterator() -> Iterator {
-        Iterator(current: self)
-    }
-    
-    public struct Iterator: IteratorProtocol {
-        private var current: OneOrMore
-        private var index: Index = 0
-        
-        init(current: OneOrMore) {
-            self.current = current
-        }
-        
-        public mutating func next() -> T? {
-            defer {
-                index += 1
-            }
-            
-            return index < current.endIndex ? current[index] : nil
-        }
-    }
-}
-
-extension TwoOrMore: Sequence {
-    public func makeIterator() -> Iterator {
-        Iterator(current: self)
-    }
-    
-    public struct Iterator: IteratorProtocol {
-        private var current: TwoOrMore
-        private var index: Index = 0
-        
-        init(current: TwoOrMore) {
-            self.current = current
-        }
-        
-        public mutating func next() -> T? {
-            defer {
-                index += 1
-            }
-            
-            return index < current.endIndex ? current[index] : nil
-        }
-    }
-}
-
-// MARK: Collection conformance
-extension OneOrMore: Collection {
-    public var startIndex: Int {
-        return 0
-    }
-    public var endIndex: Int {
-        remaining.count + 1
-    }
-    
-    public subscript(index: Int) -> T {
-        switch index {
-        case 0:
-            return first
-        case let rem:
-            return remaining[rem - 1]
-        }
-    }
-    
-    public func index(after i: Int) -> Int {
-        return i + 1
-    }
-}
-
-extension TwoOrMore: Collection {
-    public var startIndex: Int {
-        return 0
-    }
-    public var endIndex: Int {
-        return remaining.count + 2
-    }
-    
-    public subscript(index: Int) -> T {
-        switch index {
-        case 0:
-            return first
-        case 1:
-            return second
-        case let rem:
-            return remaining[rem - 2]
-        }
-    }
-    
-    public func index(after i: Int) -> Int {
-        i + 1
-    }
-}
-
-// MARK: Equatable conditional conformance
-extension OneOrMore: Equatable where T: Equatable { }
-extension OneOrMore: Hashable where T: Hashable { }
-
-extension TwoOrMore: Equatable where T: Equatable { }
-extension TwoOrMore: Hashable where T: Hashable { }
-
-// MARK: Array initialization
-extension OneOrMore: ExpressibleByArrayLiteral {
-    /// Initializes a OneOrMore list with a given array of items.
-    ///
-    /// - Parameter elements: Elements to create the array out of.
-    /// - precondition: At least one array element must be provided
-    public init(arrayLiteral elements: T...) {
-        self = .fromCollection(elements)
-    }
-}
-
-extension TwoOrMore: ExpressibleByArrayLiteral {
-    /// Initializes a TwoOrMore list with a given array of items.
-    ///
-    /// - Parameter elements: Elements to create the list out of.
-    /// - precondition: At least two array elements must be provided.
-    public init(arrayLiteral elements: T...) {
-        self = .fromCollection(elements)
     }
 }

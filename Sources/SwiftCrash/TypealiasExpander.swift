@@ -46,7 +46,7 @@ class TypealiasExpander {
             
         case let .generic(name, parameters):
             return .generic(expand(inString: name),
-                            parameters: .fromCollection(parameters.map(expand)))
+                            parameters: parameters.map(expand))
         }
     }
     
